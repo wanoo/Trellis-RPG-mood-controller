@@ -1,5 +1,3 @@
-#include <Adafruit_Trellis.h>
-
 /*************************************************** 
   This is a test example for the Adafruit Trellis w/HT16K33
 
@@ -18,7 +16,8 @@
  ****************************************************/
 
 #include <Wire.h>
-#include "Adafruit_Trellis.h"
+#include <Adafruit_Trellis.h>
+#include <ArduinoJson.h>
 
 #define NB_CHANNELS   12
 #define NB_SOUNDSET   8
@@ -105,6 +104,26 @@ void initKey(){
   }
 }
 
+void initJson(){
+  const size_t bufferSize = JSON_OBJECT_SIZE(3) + JSON_OBJECT_SIZE(6) + 110;
+  DynamicJsonBuffer jsonBuffer(bufferSize);
+
+  JsonObject& infos = jsonBuffer.createObject();
+  infos["version"] = "1.0";
+  infos["keys"] = numKeys;
+
+  JsonObject& data = infos.createNestedObject("data");
+
+  data["channels"] = NB_CHANNELS;
+  data["soundset"] = NB_SOUNDSET;
+  data["mood"] = NB_MOOD;
+  data["moddsound"] = NB_MOODSOUND;
+  data["themesound"] = NB_THEMESOUND;
+  data["general"] = NB_GENERAL;
+
+  infos.printTo(Serial);
+}
+
 void blinkLed( int keyId, theSpeed speed = MEDIUM ){
   int theDelay;
   int nbX;
@@ -138,10 +157,15 @@ void blinkLed( int keyId, theSpeed speed = MEDIUM ){
 void setup() {
 
   Serial.begin(9600);
+  while (!Serial) {
+    // wait serial port initialization
+  }
   
   Serial.println("Init...");
   initKey();
-  
+ 
+  initJson();
+
   Serial.println("Trellis Demo");
   // INT pin requires a pullup
   pinMode(INTPIN, INPUT);
