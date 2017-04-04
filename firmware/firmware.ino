@@ -104,26 +104,6 @@ void initKey(){
   }
 }
 
-void initJson(){
-  const size_t bufferSize = JSON_OBJECT_SIZE(3) + JSON_OBJECT_SIZE(6) + 110;
-  DynamicJsonBuffer jsonBuffer(bufferSize);
-
-  JsonObject& infos = jsonBuffer.createObject();
-  infos["version"] = "1.0";
-  infos["keys"] = numKeys;
-
-  JsonObject& data = infos.createNestedObject("data");
-
-  data["channels"] = NB_CHANNELS;
-  data["soundset"] = NB_SOUNDSET;
-  data["mood"] = NB_MOOD;
-  data["moddsound"] = NB_MOODSOUND;
-  data["themesound"] = NB_THEMESOUND;
-  data["general"] = NB_GENERAL;
-
-  infos.printTo(Serial);
-}
-
 void blinkLed( int keyId, theSpeed speed = MEDIUM ){
   int theDelay;
   int nbX;
@@ -154,6 +134,42 @@ void blinkLed( int keyId, theSpeed speed = MEDIUM ){
   }
 }
 
+void printHelp(){
+  Serial.println("======= Serial Commands =======");
+  Serial.println("Send 'STOP' to stop");
+  Serial.println("Send 'HELP' to show this view");
+  Serial.println("Send 'VALUES' to show the current values");
+  Serial.println("Send 'T123' to set the threshold to 123 (255 max!)");
+  Serial.println("Send 'M1' to move to position stored in memory 1");
+  Serial.println("Send 'M2' to move to position stored in memory 2");
+  Serial.println("Send 'S1' to store current position in memory 1");
+  Serial.println("Send 'S2' to store current position in memory 2");
+  Serial.println("Send 'M15000' to move set the mem 1 position to 5000");
+  Serial.println("Send 'M25000' to move set the mem 2 position to 5000");
+  Serial.println("Send '1580' to move to position 1580.");
+  Serial.println("===============================");
+}
+
+void getInfos(){
+  const size_t bufferSize = JSON_OBJECT_SIZE(3) + JSON_OBJECT_SIZE(6) + 110;
+  DynamicJsonBuffer jsonBuffer(bufferSize);
+
+  JsonObject& infos = jsonBuffer.createObject();
+  infos["version"] = "1.0";
+  infos["keys"] = numKeys;
+
+  JsonObject& data = infos.createNestedObject("data");
+
+  data["channels"] = NB_CHANNELS;
+  data["soundset"] = NB_SOUNDSET;
+  data["mood"] = NB_MOOD;
+  data["moddsound"] = NB_MOODSOUND;
+  data["themesound"] = NB_THEMESOUND;
+  data["general"] = NB_GENERAL;
+
+  infos.printTo(Serial);
+}
+
 void setup() {
 
   Serial.begin(9600);
@@ -164,15 +180,14 @@ void setup() {
   Serial.println("Init...");
   initKey();
  
-  initJson();
+  getInfos();
 
   Serial.println("Trellis Demo");
   // INT pin requires a pullup
   pinMode(INTPIN, INPUT);
   digitalWrite(INTPIN, HIGH);
   
-  // begin() with the addresses of each panel in order Top 1st half to Bottom 2nd half
-  trellis.begin(0x70, 0x71, 0x72, 0x73, 0x74, 0x75);  // or four!
+  trellis.begin(0x70, 0x71, 0x72, 0x73, 0x74, 0x75);
 
   // Blink up all the LEDs in order
   for (uint8_t i=0; i<numKeys; i++) {
@@ -191,13 +206,45 @@ void loop() {
   int active = 0;
   int isActive = -1;
   delay(30); // 30ms delay is required, dont remove me!
-  // If a button was just pressed or released...
+
+  //Read infos comming from serial
+  if (Serial.available() > 0) {
+
+    // read the incoming byte:
+    String val = Serial.readString();
+
+    const size_t bufferSize = JSON_OBJECT_SIZE(1) + 20;
+    DynamicJsonBuffer jsonBuffer(bufferSize);
+
+    JsonObject& root = jsonBuffer.parseObject(val);
+    const String action = root["action"]; // "infos"
+    const String type = root["type"];
+    int theLed[] = {};
+    root.copyTo(theLed);
+    Serial.print("nombre d'element : ");Serial.println(theLed[].size());
+
+    if (action.indexOf("infos") != -1) {
+      getInfos();
+    }else if (action.indexOf("help") != -1) {
+      printHelp();
+    }else if (action.indexOf("set") != -1) {
+      Serial.println("set only");
+      //blinkLed(theLed[0]);
+    }else if (action.indexOf("channel") != -1) {
+      Serial.println("channel set only");
+    }else if (action.indexOf("program") != -1) {
+      Serial.println("program trellis");
+    }else{
+      Serial.println("invalid action");
+    }
+  }
+
+  //read switch
   if (trellis.readSwitches()) {
     // go through every button
     for (uint8_t i=0; i<numKeys; i++) {
       // if it was pressed, turn it on
       if (trellis.justPressed(i)) {
-        blinkLed(i);
         Serial.print("Touch #"); Serial.print(i);
 
         /*
@@ -206,6 +253,7 @@ void loop() {
 
         //Mute
         if ( in_array(i, channelMute, NB_CHANNELS) ){
+          blinkLed(i);
           position = in_array(i, channelMute, NB_CHANNELS);
           Serial.print(" Groupe Mute: ");Serial.println(position);
           if (trellis.isLED(i)){
@@ -229,16 +277,19 @@ void loop() {
 
         //Minus
         }else if( in_array(i, channelMin, NB_CHANNELS) ){
+          blinkLed(i);
           position = in_array(i, channelMin, NB_CHANNELS);
           Serial.print(" Groupe Minus: ");Serial.println(position);
         
         //Max
         }else if( in_array(i, channelMax, NB_CHANNELS) ){
+          blinkLed(i);
           position = in_array(i, channelMax, NB_CHANNELS);
           Serial.print(" Groupe Max: ");Serial.println(position);
         
         //Single
         }else if( in_array(i, channelSingle, NB_CHANNELS) ){
+          blinkLed(i);
           position = in_array(i, channelSingle, NB_CHANNELS);
           Serial.print(" Groupe Single: ");Serial.println(position);
           if (!trellis.isLED(i)){
@@ -256,6 +307,7 @@ void loop() {
         * SoundSet Group
         */
         }else if( in_array(i, soundSet, NB_SOUNDSET) ){
+          blinkLed(i);
           position = in_array(i, soundSet, NB_SOUNDSET);
           Serial.print(" Groupe SoundSet: ");Serial.println(position);
           if (!trellis.isLED(i)){
@@ -270,6 +322,7 @@ void loop() {
         * Mood Group
         */
         }else if( in_array(i, mood, NB_MOOD) ){
+          blinkLed(i);
           position = in_array(i, mood, NB_MOOD);
           Serial.print(" Groupe Mood: ");Serial.println(position);
           if (!trellis.isLED(i)){
@@ -284,6 +337,7 @@ void loop() {
         * MoodSound Group
         */
         }else if( in_array(i, moodSound, NB_MOODSOUND) ){
+          blinkLed(i);
           position = in_array(i, moodSound, NB_MOODSOUND);
           Serial.print(" Groupe Mood Sound: ");Serial.println(position);
 
@@ -291,6 +345,7 @@ void loop() {
         * ThemeSound Group
         */
         }else if( in_array(i, themeSound, NB_THEMESOUND) ){
+          blinkLed(i);
           position = in_array(i, themeSound, NB_THEMESOUND);
           Serial.print(" Groupe Theme Sound: ");Serial.println(position);
 
@@ -298,6 +353,7 @@ void loop() {
         * General Group
         */
         }else if( in_array(i, general, NB_GENERAL) ){
+          blinkLed(i);
           position = in_array(i, general, NB_GENERAL);
           Serial.print(" Groupe General: ");Serial.println(position);
           switch (position) {
